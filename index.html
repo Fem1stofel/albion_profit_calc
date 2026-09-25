@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Albion Profit Calculator</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Albion Profit Calculator</h1>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('routes')">Маршруты</button>
+            <button class="tab-btn" onclick="switchTab('item')">Поиск предмета</button>
+            <button class="tab-btn" onclick="switchTab('scan')">Сканирование</button>
+        </div>
+
+        <!-- Вкладка 1: Маршруты между городами -->
+        <div id="routes-tab" class="tab-content active">
+            <div class="search-box">
+                <h2>Маршруты между городами</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label>Город покупки</label>
+                        <select id="fromLocation"><option value="">Загрузка...</option></select>
+                    </div>
+                    <div>
+                        <label>Город продажи</label>
+                        <select id="toLocation"><option value="">Загрузка...</option></select>
+                    </div>
+                </div>
+                <button class="search-btn" onclick="searchRoutes()">Найти маршруты</button>
+            </div>
+        </div>
+
+        <!-- Вкладка 2: Анализ предмета -->
+        <div id="item-tab" class="tab-content">
+            <div class="search-box">
+                <h2>Анализ предмета</h2>
+                <input type="text" id="itemSearch" list="itemCatalogList" placeholder="Например: Сумка адепта или T4_BAG">
+                <datalist id="itemCatalogList"></datalist>
+                <button class="search-btn" onclick="analyzeItem()">Проанализировать</button>
+            </div>
+        </div>
+
+        <!-- Вкладка 3: Сканирование всех предметов -->
+        <div id="scan-tab" class="tab-content">
+            <div class="search-box">
+                <h2>Сканировать все предметы</h2>
+                <p style="color: #888; margin-bottom: 15px;">
+                    Загружает цены из официального API Albion.<br>
+                    Сканирование можно оставить в фоне.
+                </p>
+
+                <div id="scanStatus" style="display: none;">
+                    <div style="background: rgba(255,215,0,0.1); padding: 15px; border-radius: 8px; border: 1px solid #ffd700;">
+                        <strong>Прогресс сканирования:</strong>
+                        <div style="margin: 10px 0;">
+                            <div style="background: #2a2a4a; height: 25px; border-radius: 12px; overflow: hidden;">
+                                <div id="scanBar" style="height: 100%; width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div id="scanText" style="font-size: 0.9em; color: #888; margin-top: 10px;"></div>
+                    </div>
+                </div>
+
+                <button id="scanBtn" class="search-btn" onclick="startScan()">
+                    Начать сканирование
+                </button>
+                <button id="stopBtn" class="search-btn" style="margin-top: 10px; display: none;" onclick="stopScan()">
+                    Остановить
+                </button>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalOrders">-</div>
+                <div class="stat-label">Ордеров в базе</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalRoutes">-</div>
+                <div class="stat-label">Найдено маршрутов</div>
+            </div>
+        </div>
+
+        <div id="results" class="results">
+            <p class="empty">Выберите вкладку и начните поиск</p>
+        </div>
+
+        <footer>
+            <p>Данные: локальная база и Albion Online API</p>
+        </footer>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+</body>
+</html>
