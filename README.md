@@ -1,50 +1,80 @@
-# Albion Profit Calculator
+# Albion Profit Calculator 🚀
 
 Калькулятор и анализатор выгодных торговых маршрутов между городами Albion Online.
 
-## Стек технологий
-- **Backend:** FastAPI, Uvicorn, Psycopg2, Requests, Python-dotenv
-- **Database:** PostgreSQL (схема `albion`)
-- **Frontend:** HTML5, CSS3, Vanilla JS
+---
+
+## ⚡ Быстрый старт с нуля (для друзей и коллег)
+
+### Вариант 1: Запуск в 1 клик на Windows (Самый простой)
+Если вы скачали проект на Windows:
+1. Просто запустите файл **`start.bat`** (двойным кликом).
+2. Скрипт сам всё настроит:
+   - Если на компьютере есть **Docker** — поднимет базу данных и проект в контейнерах.
+   - Если Docker нет — создаст виртуальное окружение Python, установит библиотеки и запустит проект.
+3. В браузере автоматически откроется **http://localhost:8000**.
 
 ---
 
-## Быстрый старт
+### Вариант 2: Запуск через Docker (Рекомендуется для любой ОС)
+*Не требует установки Python и PostgreSQL на ваш компьютер.*
 
-### 1. Запуск базы данных (PostgreSQL)
-
-#### Вариант A: Через Docker (рекомендуется)
-```bash
-docker compose up -d
-```
-Скрипт [init.sql](file:///C:/Users/andrew/Desktop/albion-profit-calculator/init.sql) применится автоматически при первом запуске (создаст схему `albion`, таблицы и города).
-
-#### Вариант B: Локальный PostgreSQL
-Создайте базу `albion_profit` и накатите схему:
-```bash
-psql -U postgres -d albion_profit -f init.sql
-```
-
----
-
-### 2. Запуск бэкенда
-
-1. Активируйте виртуальное окружение:
-   ```powershell
-   .venv\Scripts\Activate.ps1
+1. Убедитесь, что у вас установлен и запущен **[Docker Desktop](https://www.docker.com/products/docker-desktop/)**.
+2. В терминале в папке проекта выполните одну команду:
+   ```bash
+   docker compose up --build
    ```
-2. Установите зависимости (если еще не установлены):
+3. Откройте в браузере:
+   - 🌐 **Web-интерфейс:** [http://localhost:8000](http://localhost:8000)
+   - 📊 **Swagger API:** [http://localhost:8000/docs](http://localhost:8000/docs)
+
+*Остановить проект: `Ctrl + C` или `docker compose down`.*
+
+---
+
+### Вариант 3: Ручной запуск (Local Python)
+
+1. **Создайте файл `.env`** (скопируйте из примера):
+   ```bash
+   cp .env.example .env
+   ```
+2. **Запустите PostgreSQL:**
+   ```bash
+   docker compose up -d db
+   ```
+3. **Создайте и активируйте виртуальное окружение:**
+   - **Windows:**
+     ```powershell
+     python -m venv .venv
+     .\.venv\Scripts\Activate.ps1
+     ```
+   - **Linux / macOS:**
+     ```bash
+     python3 -m venv .venv
+     source .venv/bin/activate
+     ```
+4. **Установите зависимости:**
    ```bash
    pip install -r requirements.txt
    ```
-3. Запустите сервер:
+5. **Запустите приложение:**
    ```bash
    python main.py
    ```
-   API будет доступно по адресу: http://127.0.0.1:8000  
-   Документация Swagger: http://127.0.0.1:8000/docs
+6. Откройте в браузере: [http://localhost:8000](http://localhost:8000).
 
 ---
 
-### 3. Запуск фронтенда
-Откройте [index.html](file:///C:/Users/andrew/Desktop/albion-profit-calculator/index.html) в браузере (или через расширение Live Server в VS Code).
+## 🧪 Запуск тестов
+```bash
+pytest test_main.py -v --cov=main
+```
+
+---
+
+## 🛠 Стек технологий
+- **Backend:** FastAPI, Uvicorn, Psycopg2, Requests, Python-dotenv
+- **Database:** PostgreSQL 16 (схема `albion`)
+- **CI/CD:** GitHub Actions & GitLab CI
+- **Frontend:** HTML5, CSS3, Vanilla JS
+- **Containers:** Docker & Docker Compose

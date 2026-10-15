@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import psycopg2
 import requests
 from typing import Optional
@@ -571,14 +573,31 @@ async def get_items_catalog(
     }
 
 
+# Подключение раздачи фронтенда (static files & index.html)
+assets_path = os.path.join(os.path.dirname(__file__), "assets")
+if os.path.exists(assets_path):
+    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+
+
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    index_path = os.path.join(os.path.dirname(__file__), "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "Albion Profit Calculator API is running. See /docs"}
+
+
 if __name__ == "__main__":
     import uvicorn
 
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    port = int(os.getenv("APP_PORT", 8000))
+
     print("=" * 60)
-    print("🚀 Albion Profit Calculator API")
+    print("🚀 Albion Profit Calculator")
     print("=" * 60)
-    print("📍 Запуск на http://127.0.0.1:8000")
-    print("📊 API Docs: http://127.0.0.1:8000/docs")
+    print(f"📍 Web UI:   http://localhost:{port}")
+    print(f"📊 API Docs: http://localhost:{port}/docs")
     print("=" * 60)
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run(app, host=host, port=port, reload=False)
 
