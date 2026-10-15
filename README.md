@@ -4,7 +4,7 @@
 
 ---
 
-## ⚡ Быстрый старт с нуля (для друзей и коллег)
+## ⚡ Быстрый старт с нуля (для друзей)
 
 ### Вариант 1: Запуск в 1 клик на Windows (Самый простой)
 Если вы скачали проект на Windows:
@@ -34,47 +34,31 @@
 
 ### Вариант 3: Ручной запуск (Local Python)
 
-1. **Создайте файл `.env`** (скопируйте из примера):
-   ```bash
-   cp .env.example .env
-   ```
-2. **Запустите PostgreSQL:**
-   ```bash
-   docker compose up -d db
-   ```
-3. **Создайте и активируйте виртуальное окружение:**
+1. **Создайте и активируйте виртуальное окружение:**
    - **Windows:**
      ```powershell
      python -m venv .venv
-     .\.venv\Scripts\Activate.ps1
+     .\.venv\Scripts\activate
      ```
    - **Linux / macOS:**
      ```bash
      python3 -m venv .venv
      source .venv/bin/activate
      ```
-4. **Установите зависимости:**
+2. **Установите зависимости:**
    ```bash
    pip install -r requirements.txt
    ```
-5. **Запустите приложение:**
+3. **Запустите приложение:**
    ```bash
    python main.py
    ```
-6. Откройте в браузере: [http://localhost:8000](http://localhost:8000).
-
----
-
-## 🧪 Запуск тестов
-```bash
-pytest test_main.py -v --cov=main
-```
+4. Откройте в браузере: [http://localhost:8000](http://localhost:8000).
 
 ---
 
 ## 🛠 Стек технологий
-- **Backend:** FastAPI, Uvicorn, Psycopg2, Requests, Python-dotenv
+- **Backend:** FastAPI, Uvicorn, Psycopg2, Requests
 - **Database:** PostgreSQL 16 (схема `albion`)
-- **CI/CD:** GitHub Actions & GitLab CI
 - **Frontend:** HTML5, CSS3, Vanilla JS
 - **Containers:** Docker & Docker Compose

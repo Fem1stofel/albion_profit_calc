@@ -68,8 +68,14 @@ exit /b 1
 :PYTHON_FOUND
 :: Создаём .env, если его нет
 if not exist ".env" (
-    echo [..] Создание файла конфигурации .env из примера...
-    copy .env.example .env >nul
+    echo [..] Создание файла конфигурации .env...
+    (
+        echo DB_HOST=localhost
+        echo DB_PORT=5432
+        echo DB_NAME=albion_profit
+        echo DB_USER=postgres
+        echo DB_PASSWORD=123
+    ) > .env
 )
 
 :: Создаём .venv, если его нет
