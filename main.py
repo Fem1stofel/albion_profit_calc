@@ -589,15 +589,22 @@ async def serve_index():
 
 if __name__ == "__main__":
     import uvicorn
+    import sys
+
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
     host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", 8000))
 
     print("=" * 60)
-    print("🚀 Albion Profit Calculator")
+    print("[*] Albion Profit Calculator")
     print("=" * 60)
-    print(f"📍 Web UI:   http://localhost:{port}")
-    print(f"📊 API Docs: http://localhost:{port}/docs")
+    print(f"[*] Web UI:   http://localhost:{port}")
+    print(f"[*] API Docs: http://localhost:{port}/docs")
     print("=" * 60)
     uvicorn.run(app, host=host, port=port, reload=False)
 
