@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: albion_postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: albion_profit
@@ -20,7 +19,6 @@ services:
 
   app:
     build: .
-    container_name: albion_app
     restart: unless-stopped
     ports:
       - "8000:8000"

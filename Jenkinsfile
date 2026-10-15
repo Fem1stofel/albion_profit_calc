@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        COMPOSE_PROJECT_NAME = "albion-ci"
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -25,7 +29,7 @@ pipeline {
 
     post {
         always {
-            sh 'docker compose down -v || true'
+            sh 'docker compose down || true'
         }
     }
 }
