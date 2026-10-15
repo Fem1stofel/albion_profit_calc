@@ -62,3 +62,5 @@
 - **Database:** PostgreSQL 16 (схема `albion`)
 - **Frontend:** HTML5, CSS3, Vanilla JS
 - **Containers:** Docker & Docker Compose
+
+## Изменения тоже тут должны считаться.
