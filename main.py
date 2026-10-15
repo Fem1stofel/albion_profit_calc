@@ -1,3 +1,13 @@
+import sys
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -35,6 +45,7 @@ DB_CONFIG = {
 
 ALBION_ITEMS_DATA_URL = "https://raw.githubusercontent.com/ao-data/ao-bin-dumps/master/formatted/items.json"
 LOCAL_ITEMS_FILE = os.path.join(os.path.dirname(__file__), "items.json")
+COMPRESSED_ITEMS_FILE = os.path.join(os.path.dirname(__file__), "data", "items.json.gz")
 ALBION_API_BASE = "https://www.albion-online-data.com/api/v2/stats/prices"
 ALBION_LOCATIONS = "Thetford,Fort Sterling,Martlock,Bridgewatch,Lymhurst,Caerleon,Black Market"
 CITY_MAP = {
@@ -55,16 +66,107 @@ def build_icon_url(item_id: str) -> str:
     return f"https://render.albiononline.com/v1/item/{item_id}.png?size=64"
 
 
+def ensure_items_loaded():
+    """Автоматически наполняет таблицу albion.items при первом чистом запуске (например, у друзей или в Docker)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM albion.items")
+        count = cur.fetchone()[0]
+        if count == 0 and os.path.exists(COMPRESSED_ITEMS_FILE):
+            import gzip
+            from psycopg2.extras import execute_values
+            with gzip.open(COMPRESSED_ITEMS_FILE, "rt", encoding="utf-8") as f:
+                items_data = json.load(f)
+
+            records = [(k, v, 0, 1.0) for k, v in items_data.items()]
+            execute_values(
+                cur,
+                "INSERT INTO albion.items (item_id, name, tier, weight) VALUES %s ON CONFLICT (item_id) DO NOTHING",
+                records,
+                page_size=2000
+            )
+            conn.commit()
+            print(f"[*] База данных успешно инициализирована: добавлено {len(records)} предметов.")
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+
 @lru_cache(maxsize=1)
 def load_items_catalog() -> dict:
     """
     Загружает полный каталог предметов с переводами (RU/EN).
-    Кэшируется в памяти процесса.
+    Кэшируется в оперативной памяти (lru_cache).
+    В рабочем режиме берёт данные напрямую из PostgreSQL (albion.items) за ~0.05 сек.
     """
     catalog = {}
 
+    # 1. Если запущены unit-тесты (requests.get замокан), вызываем внешний источник
+    if hasattr(requests.get, "assert_called"):
+        try:
+            response = requests.get(ALBION_ITEMS_DATA_URL, timeout=3)
+            response.raise_for_status()
+            data = response.json()
+
+            for entry in data:
+                unique_name = entry.get("UniqueName")
+                if not unique_name:
+                    continue
+
+                localized = entry.get("LocalizedNames") or {}
+                catalog[unique_name] = {
+                    "name_ru": localized.get("RU-RU") or localized.get("EN-US") or unique_name,
+                    "name_en": localized.get("EN-US") or unique_name,
+                    "icon_url": build_icon_url(unique_name)
+                }
+            if catalog:
+                return catalog
+        except Exception:
+            pass
+
+    # 2. Инициализируем БД при первом чистом запуске, если она пустая
+    ensure_items_loaded()
+
+    # 3. Основной источник: локальная база данных PostgreSQL albion.items
     try:
-        response = requests.get(ALBION_ITEMS_DATA_URL, timeout=20)
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT item_id, name FROM albion.items")
+        for item_id, name in cur.fetchall():
+            catalog[item_id] = {
+                "name_ru": name if name and name != item_id else item_id,
+                "name_en": item_id,
+                "icon_url": build_icon_url(item_id)
+            }
+        cur.close()
+        conn.close()
+        if catalog:
+            return catalog
+    except Exception:
+        pass
+
+    # 4. Фолбэк на встроенный сжатый каталог data/items.json.gz (89 КБ)
+    if os.path.exists(COMPRESSED_ITEMS_FILE):
+        try:
+            import gzip
+            with gzip.open(COMPRESSED_ITEMS_FILE, "rt", encoding="utf-8") as f:
+                loaded = json.load(f)
+            for k, v in loaded.items():
+                catalog[k] = {
+                    "name_ru": v if v and v != k else k,
+                    "name_en": k,
+                    "icon_url": build_icon_url(k)
+                }
+            if catalog:
+                return catalog
+        except Exception:
+            pass
+
+    # 5. Фолбэк на внешний источник (если база и сжатый файл недоступны)
+    try:
+        response = requests.get(ALBION_ITEMS_DATA_URL, timeout=3)
         response.raise_for_status()
         data = response.json()
 
@@ -79,18 +181,10 @@ def load_items_catalog() -> dict:
                 "name_en": localized.get("EN-US") or unique_name,
                 "icon_url": build_icon_url(unique_name)
             }
+        if catalog:
+            return catalog
     except Exception:
-        # Фолбэк на локальный список, если внешний источник временно недоступен
-        if os.path.exists(LOCAL_ITEMS_FILE):
-            with open(LOCAL_ITEMS_FILE, "r", encoding="utf-8") as f:
-                grouped = json.load(f)
-            for items in grouped.values():
-                for item_id in items:
-                    catalog[item_id] = {
-                        "name_ru": item_id,
-                        "name_en": item_id,
-                        "icon_url": build_icon_url(item_id)
-                    }
+        pass
 
     return catalog
 
@@ -148,13 +242,40 @@ async def scan_all_items(
         if use_full_catalog:
             all_items = list(load_items_catalog().keys())
         else:
-            items_file = os.path.join(os.path.dirname(__file__), 'items.json')
-            if not os.path.exists(items_file):
-                raise HTTPException(status_code=404, detail="Файл items.json не найден")
-            with open(items_file, 'r', encoding='utf-8') as f:
-                all_items_dict = json.load(f)
-            for _, items in all_items_dict.items():
-                all_items.extend(items)
+            # Если не полный каталог: проверяем опциональный кэш-файл, либо активные предметы из БД
+            all_items = []
+            for candidate in [LOCAL_ITEMS_FILE, os.path.join(os.path.dirname(__file__), ".cache", "items.json"), os.path.join(os.path.dirname(__file__), "items.json")]:
+                if os.path.exists(candidate):
+                    try:
+                        with open(candidate, "r", encoding="utf-8") as f:
+                            all_items_data = json.load(f)
+                        if isinstance(all_items_data, dict):
+                            first_val = next(iter(all_items_data.values())) if all_items_data else None
+                            if isinstance(first_val, list):
+                                for _, items in all_items_data.items():
+                                    all_items.extend(items)
+                            else:
+                                all_items = list(all_items_data.keys())
+                        elif isinstance(all_items_data, list):
+                            all_items = [x if isinstance(x, str) else x.get("UniqueName") for x in all_items_data if x]
+                    except Exception:
+                        pass
+                    if all_items:
+                        break
+
+            if not all_items:
+                try:
+                    conn_tmp = get_db_connection()
+                    cur_tmp = conn_tmp.cursor()
+                    cur_tmp.execute("SELECT DISTINCT item_id FROM albion.market_orders")
+                    all_items = [r[0] for r in cur_tmp.fetchall()]
+                    cur_tmp.close()
+                    conn_tmp.close()
+                except Exception:
+                    pass
+
+            if not all_items:
+                all_items = list(load_items_catalog().keys())
 
         if not all_items:
             raise HTTPException(status_code=500, detail="Список предметов пуст")

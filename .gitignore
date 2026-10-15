@@ -27,3 +27,7 @@ htmlcov/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Cache & data dumps
+.cache/
+items.json
