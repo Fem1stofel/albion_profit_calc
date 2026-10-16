@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS albion.items (
 
 ALTER TABLE IF EXISTS albion.items ALTER COLUMN item_id TYPE VARCHAR(255);
 ALTER TABLE IF EXISTS albion.items ALTER COLUMN name TYPE VARCHAR(255);
+ALTER TABLE IF EXISTS albion.market_orders ALTER COLUMN item_id TYPE VARCHAR(255);
 
 -- 3. Market Orders
 CREATE TABLE IF NOT EXISTS albion.market_orders (

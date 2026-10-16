@@ -7,22 +7,34 @@ echo    Albion Profit Calculator - Быстрый запуск
 echo ======================================================
 echo.
 
-:: 1. Проверяем Docker
+:: 1. Проверяем локальный Python (основной режим без Docker-контейнеров)
+where python >nul 2>&1
+if %ERRORLEVEL% EQU 0 goto LOCAL_PYTHON
+
+:: 2. Если Python не найден, проверяем Docker
 where docker >nul 2>&1
-if %ERRORLEVEL% NEQ 0 goto LOCAL_PYTHON
-
-docker info >nul 2>&1
-if %ERRORLEVEL% EQU 0 goto DOCKER_READY
-
-if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-    echo [..] Docker установлен, но не запущен. Запуск Docker Desktop...
-    start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
-    echo [..] Ожидание инициализации Docker...
-    timeout /t 15 /nobreak >nul 2>&1 || ping 127.0.0.1 -n 16 >nul
+if %ERRORLEVEL% EQU 0 (
+    docker info >nul 2>&1
+    if %ERRORLEVEL% EQU 0 goto DOCKER_READY
+    if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+        echo [..] Docker установлен, но не запущен. Запуск Docker Desktop...
+        start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+        echo [..] Ожидание инициализации Docker...
+        timeout /t 15 /nobreak >nul 2>&1 || ping 127.0.0.1 -n 16 >nul
+        docker info >nul 2>&1
+        if %ERRORLEVEL% EQU 0 goto DOCKER_READY
+    )
 )
 
-docker info >nul 2>&1
-if %ERRORLEVEL% NEQ 0 goto LOCAL_PYTHON
+echo.
+echo [!] ОШИБКА: На компьютере не найдены ни Python, ни Docker!
+echo.
+echo Чтобы запустить проект, установите Python 3.10+:
+echo   https://www.python.org/downloads/
+echo   (Обязательно отметьте галочку Add Python to PATH при установке!)
+echo.
+pause
+exit /b 1
 
 :DOCKER_READY
 echo [OK] Обнаружен работающий Docker!
@@ -30,8 +42,9 @@ echo [..] Запуск проекта и базы данных в контейн
 echo.
 docker compose up --build -d
 if %ERRORLEVEL% NEQ 0 (
-    echo [!] Ошибка запуска через Docker Compose. Переходим к локальному запуску...
-    goto LOCAL_PYTHON
+    echo [!] Ошибка запуска через Docker Compose.
+    pause
+    exit /b 1
 )
 
 echo.
@@ -48,10 +61,8 @@ pause
 exit /b 0
 
 :LOCAL_PYTHON
-:: 2. Локальный запуск через Python
-echo [..] Проверка Python на компьютере...
-where python >nul 2>&1
-if %ERRORLEVEL% EQU 0 goto PYTHON_FOUND
+echo [OK] Обнаружен Python на компьютере!
+goto PYTHON_FOUND
 
 echo.
 echo [!] ОШИБКА: На компьютере не найдены ни Docker, ни Python!

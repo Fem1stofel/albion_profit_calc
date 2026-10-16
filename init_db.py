@@ -33,17 +33,22 @@ COMPRESSED_ITEMS_FILE = os.path.join(BASE_DIR, "data", "items.json.gz")
 
 
 def get_maintenance_connection():
-    """Подключение к системной БД postgres для проверки/создания целевой базы."""
-    conn = psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database="postgres",
-        connect_timeout=5
-    )
-    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-    return conn
+    """Подключение к системной БД postgres или template1 для проверки/создания целевой базы."""
+    for db_candidate in ["postgres", "template1"]:
+        try:
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=db_candidate,
+                connect_timeout=5
+            )
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            return conn
+        except Exception:
+            continue
+    raise psycopg2.OperationalError(f"Не удалось подключиться к системной базе на {DB_HOST}:{DB_PORT}")
 
 
 def get_target_connection():

@@ -58,6 +58,11 @@ LOCAL_ITEMS_FILE = os.path.join(os.path.dirname(__file__), "items.json")
 COMPRESSED_ITEMS_FILE = os.path.join(os.path.dirname(__file__), "data", "items.json.gz")
 ALBION_API_BASE = "https://www.albion-online-data.com/api/v2/stats/prices"
 ALBION_LOCATIONS = "Thetford,Fort Sterling,Martlock,Bridgewatch,Lymhurst,Caerleon,Black Market"
+API_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+}
 CITY_MAP = {
     'Thetford': 4, 'Fort Sterling': 5, 'Martlock': 6,
     'Bridgewatch': 7, 'Lymhurst': 8, 'Caerleon': 9, 'Black Market': 10
@@ -251,7 +256,8 @@ scan_progress = {
     'errors': 0,
     'found_routes': 0,
     'all_items': [],  # Сохраняем список предметов
-    'started': False
+    'started': False,
+    'last_error': ''
 }
 
 
@@ -315,6 +321,7 @@ async def scan_all_items(
         scan_progress['processed'] = 0
         scan_progress['errors'] = 0
         scan_progress['found_routes'] = 0
+        scan_progress['last_error'] = ''
 
     # Если уже всё обработано
     if scan_progress['processed'] >= scan_progress['total']:
@@ -347,18 +354,39 @@ async def scan_all_items(
                 response = requests.get(
                     f"{ALBION_API_BASE}/{joined_ids}",
                     params={"locations": ALBION_LOCATIONS, "qualities": "1"},
-                    timeout=12
+                    headers=API_HEADERS,
+                    timeout=15
                 )
                 if response.status_code != 200:
                     chunk_error = True
+                    err_msg = f"Albion API HTTP {response.status_code} ({response.reason or 'Ошибка запроса'})"
+                    print(f"❌ Albion API error ({chunk[0]}...): {err_msg}")
+                    scan_progress['last_error'] = err_msg
                 else:
                     for price_data in response.json():
                         item_id = price_data.get("item_id")
                         if item_id:
                             grouped_prices[item_id].append(price_data)
-            except Exception as e:
-                print(f"❌ Batch error ({chunk[0]}...): {e}")
+            except requests.exceptions.SSLError as e:
                 chunk_error = True
+                err_msg = "SSL ошибка подключения к API Albion (проверьте антивирус/сертификаты)"
+                print(f"❌ Batch SSL error ({chunk[0]}...): {e}")
+                scan_progress['last_error'] = err_msg
+            except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout, requests.exceptions.Timeout) as e:
+                chunk_error = True
+                err_msg = "Таймаут соединения с сервером Albion Data (сервер заблокирован провайдером без VPN / таймаут сети)"
+                print(f"❌ Batch Timeout error ({chunk[0]}...): {e}")
+                scan_progress['last_error'] = err_msg
+            except requests.exceptions.ConnectionError as e:
+                chunk_error = True
+                err_msg = "Не удалось подключиться к серверу Albion Data (возможно, сервер заблокирован вашим провайдером без VPN)"
+                print(f"❌ Batch Connection error ({chunk[0]}...): {e}")
+                scan_progress['last_error'] = err_msg
+            except Exception as e:
+                chunk_error = True
+                err_msg = f"Ошибка запроса к API Albion: {e}"
+                print(f"❌ Batch error ({chunk[0]}...): {e}")
+                scan_progress['last_error'] = err_msg
 
             for item_id in chunk:
                 try:
@@ -392,13 +420,22 @@ async def scan_all_items(
 
                     if chunk_error:
                         scan_progress['errors'] += 1
+                    else:
+                        conn.commit()
                 except Exception as e:
-                    print(f"❌ {item_id}: {e}")
+                    conn.rollback()
+                    db_err = f"Ошибка базы данных ({item_id}): {e}"
+                    print(f"❌ {db_err}")
                     scan_progress['errors'] += 1
+                    scan_progress['last_error'] = db_err
                 finally:
                     scan_progress['processed'] += 1
 
-            conn.commit()
+            if not chunk_error:
+                try:
+                    conn.commit()
+                except Exception:
+                    pass
     finally:
         cur.close()
         conn.close()
@@ -439,7 +476,8 @@ async def reset_scan():
         'errors': 0,
         'found_routes': 0,
         'all_items': [],
-        'started': False
+        'started': False,
+        'last_error': ''
     }
     return {'status': 'reset'}
 
@@ -454,9 +492,17 @@ async def analyze_item(item_id: str):
             'qualities': '1'
         }
 
-        response = requests.get(url, params=params, timeout=10)
+        try:
+            response = requests.get(url, params=params, headers=API_HEADERS, timeout=12)
+        except requests.exceptions.SSLError:
+            raise HTTPException(status_code=502, detail="Ошибка SSL при подключении к API Albion (проверьте системные сертификаты/антивирус)")
+        except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            raise HTTPException(status_code=504, detail="Не удалось связаться с сервером цен Albion Online Data. Возможно, сервер заблокирован вашим провайдером без VPN.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка соединения с API Albion: {e}")
+
         if response.status_code != 200:
-            raise HTTPException(status_code=404, detail="Предмет не найден в API")
+            raise HTTPException(status_code=404, detail="Предмет не найден в API Albion или нет актуальных цен")
 
         api_data = response.json()
 

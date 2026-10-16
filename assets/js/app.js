@@ -262,11 +262,19 @@ async function startScan() {
                 const percent = p.total > 0 ? Math.round((p.processed / p.total) * 100) : 0;
 
                 scanBar.style.width = `${percent}%`;
+                let errorDetailsHtml = "";
+                if (p.errors > 0 && p.last_error) {
+                    errorDetailsHtml = `<div style="margin-top: 8px; padding: 8px 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; color: #fca5a5; font-size: 0.9em; line-height: 1.4;">
+                        ⚠️ <strong>Причина:</strong> ${p.last_error}
+                    </div>`;
+                }
+
                 scanText.innerHTML = `
                     📦 Обработано: ${p.processed}/${p.total} (${percent}%)<br>
                     🔍 Текущий: ${p.current_item || "..."}<br>
                     ✅ Найдено маршрутов: ${p.found_routes}<br>
                     ❌ Ошибок: ${p.errors}
+                    ${errorDetailsHtml}
                 `;
 
                 loadStats();
