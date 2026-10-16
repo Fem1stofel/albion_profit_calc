@@ -92,24 +92,27 @@ if exist ".venv\Scripts\python.exe" (
     python -m pip install -r requirements.txt
 )
 
-:: Проверяем доступность базы данных PostgreSQL
-if not exist ".venv\Scripts\python.exe" goto LAUNCH_SERVER
-
-.venv\Scripts\python.exe -c "import psycopg2, os; from dotenv import load_dotenv; load_dotenv(); psycopg2.connect(host=os.getenv('DB_HOST','localhost'), port=int(os.getenv('DB_PORT',5432)), user=os.getenv('DB_USER','postgres'), password=os.getenv('DB_PASSWORD','123'), database=os.getenv('DB_NAME','albion_profit'), connect_timeout=3)" >nul 2>&1
-if %ERRORLEVEL% EQU 0 goto LAUNCH_SERVER
-
-echo.
-echo ======================================================
-echo  [!] ВНИМАНИЕ: База данных PostgreSQL недоступна!
-echo ======================================================
-echo.
-echo Для работы приложения необходима база данных PostgreSQL.
-echo Самый простой способ запустить всё в 1 клик без ручной настройки:
-echo   1. Установите Docker Desktop: https://www.docker.com/products/docker-desktop/
-echo   2. Запустите start.bat снова - он сам поднимет базу и веб-сервер.
-echo.
-pause
-exit /b 1
+:: Проверяем доступность и подготавливаем базу данных PostgreSQL (подключаем существующую или создаем новую)
+echo [..] Проверка и подготовка базы данных PostgreSQL...
+if exist ".venv\Scripts\python.exe" (
+    .venv\Scripts\python.exe init_db.py
+) else (
+    python init_db.py
+)
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo ======================================================
+    echo  [!] ВНИМАНИЕ: База данных PostgreSQL недоступна!
+    echo ======================================================
+    echo.
+    echo Для работы приложения необходима база данных PostgreSQL.
+    echo Убедитесь, что служба PostgreSQL запущена на порту 5432
+    echo и реквизиты в файле .env указаны корректно.
+    echo.
+    pause
+    exit /b 1
+)
+goto LAUNCH_SERVER
 
 :LAUNCH_SERVER
 echo.

@@ -35,6 +35,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+@app.on_event("startup")
+async def on_startup():
+    try:
+        from init_db import init_database
+        init_database(auto_create=True)
+    except Exception as e:
+        print(f"[!] Предупреждение при автоинициализации БД: {e}")
+
+
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "database": os.getenv("DB_NAME", "albion_profit"),
@@ -717,6 +727,12 @@ if __name__ == "__main__":
         sys.stderr.reconfigure(encoding='utf-8')
     except Exception:
         pass
+
+    try:
+        from init_db import init_database
+        init_database(auto_create=True)
+    except Exception as e:
+        print(f"[!] Предупреждение при автоинициализации БД: {e}")
 
     host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", 8000))

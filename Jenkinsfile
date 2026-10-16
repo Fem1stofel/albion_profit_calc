@@ -2,56 +2,105 @@ pipeline {
     agent any
 
     environment {
-        COMPOSE_PROJECT_NAME = "albion-ci"
-        // CI использует другие порты — ручная среда продолжает работать на 5432 и 8000
-        DB_PORT = "5433"
-        APP_PORT = "8001"
+        // Настройки подключения к базе данных (БД работает локально, НЕ в контейнере)
+        DB_HOST = 'localhost'
+        DB_PORT = '5432'
+        DB_NAME = 'albion_profit'
+        DB_USER = 'postgres'
+        DB_PASSWORD = '123'
+        DB_SCHEMA = 'albion'
+        APP_PORT = '8000'
+        PYTHONUNBUFFERED = '1'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo 'Код получен из репозитория'
+                echo '=== [1/5] Получение исходного кода ==='
+                checkout scm
             }
         }
 
-        stage('Cleanup old CI containers') {
+        stage('Install Dependencies') {
             steps {
-                sh 'docker compose down --remove-orphans || true'
+                echo '=== [2/5] Проверка и установка зависимостей Python ==='
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            python3 -m venv .venv || true
+                            . .venv/bin/activate || true
+                            pip install -r requirements.txt
+                        '''
+                    } else {
+                        bat 'ci_runner.bat -m pip install -r requirements.txt'
+                    }
+                }
             }
         }
 
-        stage('Build') {
+        stage('Database Setup (No Container)') {
             steps {
-                sh 'docker compose build'
+                echo '=== [3/5] Инициализация БД (без контейнеров): подключение к существующей или создание новой ==='
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            . .venv/bin/activate || true
+                            python3 init_db.py
+                        '''
+                    } else {
+                        bat 'ci_runner.bat init_db.py'
+                    }
+                }
             }
         }
 
-        stage('Run') {
+        stage('Run Tests') {
             steps {
-                sh 'docker compose up -d'
-                sh 'sleep 5'
-                sh 'docker compose ps'
+                echo '=== [4/5] Запуск модульных и интеграционных тестов ==='
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            . .venv/bin/activate || true
+                            pytest test_main.py -v --junitxml=test-results.xml
+                        '''
+                    } else {
+                        bat 'ci_runner.bat -m pytest test_main.py -v --junitxml=test-results.xml'
+                    }
+                }
             }
         }
 
-        stage('Test') {
+        stage('Smoke Test App') {
             steps {
-                // Проверяем, что приложение отвечает
-                sh 'curl -f http://localhost:8001/ || true'
-                // Здесь позже можно добавить реальные тесты:
-                // sh 'docker compose exec -T app python -m pytest tests/'
+                echo '=== [5/5] Проверка запуска веб-сервера FastAPI ==='
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            . .venv/bin/activate || true
+                            python3 -c "from main import app; print('[OK] FastAPI app successfully initialized')"
+                        '''
+                    } else {
+                        bat 'ci_runner.bat -c "from main import app; print(\'[OK] FastAPI app successfully initialized\')"'
+                    }
+                }
             }
         }
     }
 
     post {
         always {
-            echo 'Пайплайн завершён'
+            echo 'Пайплайн завершён.'
+            junit allowEmptyResults: true, testResults: 'test-results.xml'
+        }
+        success {
+            echo '======================================================='
+            echo ' [OK] CI/CD успешно пройден: база подключена, тесты пройдены!'
+            echo '======================================================='
         }
         failure {
-            sh 'docker compose logs --tail=50'
-            sh 'docker compose down || true'
+            echo '======================================================='
+            echo ' [!] Ошибка в процессе сборки / тестирования!'
+            echo '======================================================='
         }
     }
 }
