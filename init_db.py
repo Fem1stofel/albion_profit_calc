@@ -104,32 +104,42 @@ def apply_init_sql():
 
 
 def seed_items_if_needed():
-    """Заполняет таблицу items из сжатого файла, если таблица пуста."""
+    """Заполняет таблицу items из сжатого файла, если таблица пуста или имена не русифицированы."""
     if not os.path.exists(COMPRESSED_ITEMS_FILE):
         return
 
     conn = get_target_connection()
     cur = conn.cursor()
     cur.execute(f"SET search_path TO {DB_SCHEMA}, public")
+    cur.execute("SELECT COUNT(*) FROM albion.items WHERE name = item_id")
+    untranslated_count = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM albion.items")
     count = cur.fetchone()[0]
 
-    if count == 0:
-        print(f"[*] Таблица {DB_SCHEMA}.items пуста. Импорт предметов из {COMPRESSED_ITEMS_FILE}...")
+    if count == 0 or untranslated_count > 100:
+        print(f"[*] Импорт и обновление русских названий предметов из {COMPRESSED_ITEMS_FILE}...")
         with gzip.open(COMPRESSED_ITEMS_FILE, "rt", encoding="utf-8") as f:
             items_data = json.load(f)
 
-        records = [(k, v, 0, 1.0) for k, v in items_data.items()]
+        records = []
+        for k, v in items_data.items():
+            ru_name = v.get("ru", k) if isinstance(v, dict) else (v[0] if isinstance(v, list) else v)
+            records.append((k, ru_name, 0, 1.0))
+
         execute_values(
             cur,
-            "INSERT INTO albion.items (item_id, name, tier, weight) VALUES %s ON CONFLICT (item_id) DO NOTHING",
+            """
+            INSERT INTO albion.items (item_id, name, tier, weight) 
+            VALUES %s 
+            ON CONFLICT (item_id) DO UPDATE SET name = EXCLUDED.name
+            """,
             records,
             page_size=2000
         )
         conn.commit()
-        print(f"[OK] Импортировано {len(records)} предметов в albion.items.")
+        print(f"[OK] Импортировано/обновлено {len(records)} предметов с русскими названиями в albion.items.")
     else:
-        print(f"[OK] Таблица {DB_SCHEMA}.items уже содержит {count} записей.")
+        print(f"[OK] Таблица {DB_SCHEMA}.items уже содержит {count} локализованных записей.")
 
     cur.close()
     conn.close()

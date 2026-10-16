@@ -7,14 +7,16 @@ let catalogItems = [];
 function renderItemInfo(item) {
     const icon = item.icon_url || `https://render.albiononline.com/v1/item/${item.item_id}.png?size=64`;
     const ruName = item.name_ru || item.name || item.item_id;
-    const enName = item.name_en || item.item_id;
+    const enName = (item.name_en && item.name_en !== ruName)
+        ? item.name_en
+        : ((item.item_id && item.item_id !== ruName) ? item.item_id : '');
+
     return `
         <div class="item-cell">
             <img class="item-icon" loading="lazy" src="${icon}" alt="${ruName}">
             <div class="item-names">
                 <span class="item-name-ru">${ruName}</span>
-                <span class="item-name-en">${enName}</span>
-                <small>${item.item_id}</small>
+                ${enName ? `<span class="item-name-en">${enName}</span>` : ''}
             </div>
         </div>
     `;

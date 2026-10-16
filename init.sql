@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS albion.items (
     weight NUMERIC(10, 2) NOT NULL DEFAULT 1.0
 );
 
+ALTER TABLE IF EXISTS albion.items ALTER COLUMN item_id TYPE VARCHAR(255);
+ALTER TABLE IF EXISTS albion.items ALTER COLUMN name TYPE VARCHAR(255);
+
 -- 3. Market Orders
 CREATE TABLE IF NOT EXISTS albion.market_orders (
     id BIGSERIAL PRIMARY KEY,

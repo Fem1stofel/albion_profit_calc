@@ -79,10 +79,10 @@ tr:hover { background: #253142; }
 .roi { color: #fde68a; font-weight: 600; }
 .city-badge { background: #374151; padding: 3px 8px; border-radius: 999px; font-size: 0.8rem; }
 .item-cell { display: flex; align-items: center; gap: 10px; min-width: 260px; }
-.item-icon { width: 28px; height: 28px; border-radius: 4px; background: #111827; object-fit: contain; }
+.item-icon { width: 34px; height: 34px; border-radius: 6px; background: #111827; object-fit: contain; flex-shrink: 0; }
 .item-names { display: flex; flex-direction: column; gap: 2px; }
-.item-name-ru { font-weight: 600; color: #f3f4f6; line-height: 1.2; }
-.item-name-en { font-size: 0.8rem; color: #9ca3af; line-height: 1.2; }
+.item-name-ru { font-size: 0.95rem; font-weight: 700; color: #f9fafb; line-height: 1.25; }
+.item-name-en { font-size: 0.78rem; color: #9ca3af; line-height: 1.2; }
 
 .loading { text-align: center; padding: 24px 12px; color: #9ca3af; }
 .error { color: #fca5a5; text-align: center; padding: 16px; background: #2a1d20; border-radius: 8px; border: 1px solid #7f1d1d; }

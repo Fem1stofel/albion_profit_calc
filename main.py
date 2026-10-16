@@ -77,27 +77,37 @@ def build_icon_url(item_id: str) -> str:
 
 
 def ensure_items_loaded():
-    """Автоматически наполняет таблицу albion.items при первом чистом запуске (например, у друзей или в Docker)."""
+    """Автоматически наполняет или обновляет таблицу albion.items с русскими названиями."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM albion.items WHERE name = item_id")
+        untranslated = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM albion.items")
         count = cur.fetchone()[0]
-        if count == 0 and os.path.exists(COMPRESSED_ITEMS_FILE):
+        if (count == 0 or untranslated > 100) and os.path.exists(COMPRESSED_ITEMS_FILE):
             import gzip
             from psycopg2.extras import execute_values
             with gzip.open(COMPRESSED_ITEMS_FILE, "rt", encoding="utf-8") as f:
                 items_data = json.load(f)
 
-            records = [(k, v, 0, 1.0) for k, v in items_data.items()]
+            records = []
+            for k, v in items_data.items():
+                ru = v.get("ru", k) if isinstance(v, dict) else (v[0] if isinstance(v, list) else v)
+                records.append((k, ru, 0, 1.0))
+
             execute_values(
                 cur,
-                "INSERT INTO albion.items (item_id, name, tier, weight) VALUES %s ON CONFLICT (item_id) DO NOTHING",
+                """
+                INSERT INTO albion.items (item_id, name, tier, weight) 
+                VALUES %s 
+                ON CONFLICT (item_id) DO UPDATE SET name = EXCLUDED.name
+                """,
                 records,
                 page_size=2000
             )
             conn.commit()
-            print(f"[*] База данных успешно инициализирована: добавлено {len(records)} предметов.")
+            print(f"[*] База данных успешно инициализирована: обновлено {len(records)} предметов с русскими названиями.")
         cur.close()
         conn.close()
     except Exception:
@@ -109,7 +119,6 @@ def load_items_catalog() -> dict:
     """
     Загружает полный каталог предметов с переводами (RU/EN).
     Кэшируется в оперативной памяти (lru_cache).
-    В рабочем режиме берёт данные напрямую из PostgreSQL (albion.items) за ~0.05 сек.
     """
     catalog = {}
 
@@ -136,10 +145,36 @@ def load_items_catalog() -> dict:
         except Exception:
             pass
 
-    # 2. Инициализируем БД при первом чистом запуске, если она пустая
+    # 2. Основной источник: встроенный каталог data/items.json.gz (содержит RU и EN)
+    if os.path.exists(COMPRESSED_ITEMS_FILE):
+        try:
+            import gzip
+            with gzip.open(COMPRESSED_ITEMS_FILE, "rt", encoding="utf-8") as f:
+                loaded = json.load(f)
+            for k, v in loaded.items():
+                if isinstance(v, dict):
+                    ru = v.get("ru") or k
+                    en = v.get("en") or k
+                elif isinstance(v, list):
+                    ru = v[0] if len(v) > 0 else k
+                    en = v[1] if len(v) > 1 else k
+                else:
+                    ru = v if v and v != k else k
+                    en = k
+                catalog[k] = {
+                    "name_ru": ru,
+                    "name_en": en,
+                    "icon_url": build_icon_url(k)
+                }
+            if catalog:
+                return catalog
+        except Exception:
+            pass
+
+    # 3. Инициализируем БД при первом чистом запуске
     ensure_items_loaded()
 
-    # 3. Основной источник: локальная база данных PostgreSQL albion.items
+    # 4. Фолбэк на локальную базу данных PostgreSQL albion.items
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -156,23 +191,6 @@ def load_items_catalog() -> dict:
             return catalog
     except Exception:
         pass
-
-    # 4. Фолбэк на встроенный сжатый каталог data/items.json.gz (89 КБ)
-    if os.path.exists(COMPRESSED_ITEMS_FILE):
-        try:
-            import gzip
-            with gzip.open(COMPRESSED_ITEMS_FILE, "rt", encoding="utf-8") as f:
-                loaded = json.load(f)
-            for k, v in loaded.items():
-                catalog[k] = {
-                    "name_ru": v if v and v != k else k,
-                    "name_en": k,
-                    "icon_url": build_icon_url(k)
-                }
-            if catalog:
-                return catalog
-        except Exception:
-            pass
 
     # 5. Фолбэк на внешний источник (если база и сжатый файл недоступны)
     try:
